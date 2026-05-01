@@ -1,9 +1,9 @@
 #include <ruby.h>
 #include "sound_analysis_mac.h"
 
-static VALUE rb_sound_analysis_mac_perform(VALUE self, VALUE input) {
-    const char *c_input = StringValueCStr(input);
-    char *result = sound_analysis_mac_perform(c_input);
+static VALUE rb_sound_analysis_mac_classify(VALUE self, VALUE path) {
+    const char *c_path = StringValueCStr(path);
+    char *result = sound_analysis_mac_classify(c_path);
     if (result == NULL) {
         return rb_utf8_str_new_cstr("");
     }
@@ -14,5 +14,5 @@ static VALUE rb_sound_analysis_mac_perform(VALUE self, VALUE input) {
 
 void Init_sound_analysis_mac(void) {
     VALUE module = rb_define_module("SoundAnalysisMac");
-    rb_define_singleton_method(module, "perform", rb_sound_analysis_mac_perform, 1);
+    rb_define_singleton_method(module, "classify", rb_sound_analysis_mac_classify, 1);
 }

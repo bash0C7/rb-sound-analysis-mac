@@ -1,16 +1,51 @@
+import SoundAnalysis
 import Foundation
 
-// TODO: Implement your SoundAnalysisMac logic here.
-//
-// Example:
-//
-// import Vision
-//
-// func performTask(input: String) -> String {
-//     // ...
-//     return ""
-// }
+private let timeoutSeconds: Int = 30
 
-func sound_analysis_mac_perform(_ input: String) -> String {
-    return input
+private final class ResultCollector: NSObject, SNResultsObserving {
+    var lines: [String] = []
+    let semaphore: DispatchSemaphore
+
+    init(semaphore: DispatchSemaphore) {
+        self.semaphore = semaphore
+        super.init()
+    }
+
+    func request(_ request: SNRequest, didProduce result: SNResult) {
+        guard let cr = result as? SNClassificationResult,
+              let top = cr.classifications.first else { return }
+        lines.append("\(top.identifier)\t\(top.confidence)")
+    }
+
+    func request(_ request: SNRequest, didFailWithError error: Error) {
+        semaphore.signal()
+    }
+
+    func requestDidComplete(_ request: SNRequest) {
+        semaphore.signal()
+    }
+}
+
+func performClassify(path: String) -> String {
+    if path.isEmpty { return "" }
+    if !FileManager.default.fileExists(atPath: path) { return "" }
+
+    let url = URL(fileURLWithPath: path)
+    let semaphore = DispatchSemaphore(value: 0)
+    let collector = ResultCollector(semaphore: semaphore)
+
+    do {
+        let analyzer = try SNAudioFileAnalyzer(url: url)
+        let request = try SNClassifySoundRequest(classifierIdentifier: .version1)
+        try analyzer.add(request, withObserver: collector)
+        analyzer.analyze()
+        if semaphore.wait(timeout: .now() + .seconds(timeoutSeconds)) == .timedOut {
+            return ""
+        }
+    } catch {
+        return ""
+    }
+
+    return collector.lines.joined(separator: "\n")
 }
