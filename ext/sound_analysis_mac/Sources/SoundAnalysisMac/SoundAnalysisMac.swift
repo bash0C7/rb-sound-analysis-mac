@@ -5,6 +5,7 @@ private let timeoutSeconds: Int = 30
 
 private final class ResultCollector: NSObject, SNResultsObserving {
     var lines: [String] = []
+    var failed: Bool = false
     let semaphore: DispatchSemaphore
 
     init(semaphore: DispatchSemaphore) {
@@ -19,6 +20,7 @@ private final class ResultCollector: NSObject, SNResultsObserving {
     }
 
     func request(_ request: SNRequest, didFailWithError error: Error) {
+        failed = true
         semaphore.signal()
     }
 
@@ -47,5 +49,6 @@ func performClassify(path: String) -> String {
         return ""
     }
 
+    if collector.failed { return "" }
     return collector.lines.joined(separator: "\n")
 }
