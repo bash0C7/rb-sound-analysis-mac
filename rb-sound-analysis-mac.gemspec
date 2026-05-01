@@ -8,8 +8,8 @@ Gem::Specification.new do |spec|
   spec.authors = ["bash0C7"]
   spec.email = ["ksb.4038.nullpointer+github@gmail.com"]
 
-  spec.summary = "Swift-backed native Ruby extension: rb-sound-analysis-mac"
-  spec.description = "rb-sound-analysis-mac wraps a Swift implementation as a Ruby native extension via Swift Package Manager and a thin C bridge. Edit this description before publishing."
+  spec.summary = "Ruby binding for Apple Sound Analysis framework on macOS"
+  spec.description = "Calls Apple SoundAnalysis framework's built-in sound classifier (MLSoundIdentifierVersion1) on audio files from Ruby on macOS / Apple Silicon. Built on top of swift_gem."
   spec.homepage = "https://github.com/bash0C7/rb-sound-analysis-mac"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.2.0"
