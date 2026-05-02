@@ -9,7 +9,7 @@ Ruby native binding for Apple's Sound Analysis framework on macOS. Sibling of `r
 1. Thin wrapper. Pass-through Sound Analysis API. One audio file → one classification string (newline-separated `label\tconfidence` pairs, one per analysis time window).
 2. Fixed defaults: built-in `.version1` classifier, `SNAudioFileAnalyzer` (sync), top-1 classification per window. Custom CoreML models, multi-classification, and stream analysis are intentionally not added until needed.
 3. 30s overall timeout. Failure (unreadable file, classifier unavailable, OS error, timeout) → empty string. Does not raise exceptions.
-4. C bridge string handoff. Single `@_cdecl` pair plus shared `sound_analysis_mac_free`. Bridge function signatures fixed at `UnsafePointer<CChar>` ↔ `UnsafeMutablePointer<CChar>`.
+4. C bridge string handoff. Single `@c` (SE-0495) pair plus shared `sound_analysis_mac_free`. Bridge function signatures fixed at `UnsafePointer<CChar>` ↔ `UnsafeMutablePointer<CChar>`.
 5. Scaffold parity. `swift_gem new rb-sound-analysis-mac` produces a skeleton whose only diffs against this repo are the implementation body, fixtures, and build artifacts.
 
 ## Public API
@@ -34,7 +34,7 @@ ext/sound_analysis_mac/sound_analysis_mac.c   ← rb_define_singleton_method
   │
   │   sound_analysis_mac_classify(c_path)
   ▼
-ext/sound_analysis_mac/Sources/SoundAnalysisMac/SoundAnalysisMacBridge.swift   ← @_cdecl
+ext/sound_analysis_mac/Sources/SoundAnalysisMac/SoundAnalysisMacBridge.swift   ← @c (SE-0495)
   │
   ▼
 ext/sound_analysis_mac/Sources/SoundAnalysisMac/SoundAnalysisMac.swift   ← SNAudioFileAnalyzer + SNClassifySoundRequest
@@ -49,7 +49,7 @@ ext/sound_analysis_mac/Sources/SoundAnalysisMac/SoundAnalysisMac.swift   ← SNA
 |---|---|
 | `lib/sound_analysis_mac.rb` | `require_relative` to load the .bundle; host of `module SoundAnalysisMac` |
 | `ext/sound_analysis_mac/sound_analysis_mac.c` | `Init_sound_analysis_mac` exposes `classify`; copies Swift-returned `char*` into a Ruby UTF-8 String, then calls `sound_analysis_mac_free` |
-| `SoundAnalysisMacBridge.swift` | C ABI export via `@_cdecl` |
+| `SoundAnalysisMacBridge.swift` | C ABI export via `@c` (SE-0495) |
 | `SoundAnalysisMac.swift` | Real implementation: `SNAudioFileAnalyzer.analyze()` (synchronous) + an `SNResultsObserving` collector |
 | `ext/sound_analysis_mac/extconf.rb` | `SwiftGem::Mkmf.create_swift_makefile("sound_analysis_mac/sound_analysis_mac", package: "SoundAnalysisMac", source_dir: __dir__)` |
 | `examples/sound_analysis_mac.swift` | Pure-Swift sample script |
@@ -75,7 +75,7 @@ t-wada style RED → GREEN → REFACTOR independent commits. test-unit. Fixture:
 
 ## Environment requirements
 
-macOS 12+, Apple Silicon, Swift 6.0+, Ruby 3.2+, bundler 4.x, rake-compiler 1.2+. `Gemfile` references swift_gem via `path: "../swift_gem"` until publish. `Gemfile.lock` not git-tracked.
+macOS 12+, Apple Silicon, Swift 6.3+ (SE-0495 `@c` requires 6.3; install via [swiftly](https://www.swift.org/install/macos/)), Ruby 3.2+, bundler 4.x, rake-compiler 1.2+. `Gemfile` references swift_gem via `path: "../swift_gem"` until publish. `Gemfile.lock` not git-tracked.
 
 ## Prohibitions
 

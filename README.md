@@ -2,6 +2,12 @@
 
 Ruby binding for Apple's Sound Analysis framework on macOS / Apple Silicon. Calls file-based sound classification using the built-in `MLSoundIdentifierVersion1` classifier (300+ environmental sounds: speech, music, applause, laughter, etc.) directly from Ruby via Swift Package Manager and a thin C bridge. Built on [swift_gem](https://github.com/bash0C7/swift_gem).
 
+## Requirements
+
+- macOS 12+, Apple Silicon
+- Swift 6.3+ (SE-0495 `@c` attribute). Install via [swiftly](https://www.swift.org/install/macos/) — Xcode not required.
+- Ruby 3.2+, Bundler 4.x
+
 ## Installation
 
 ```bash
