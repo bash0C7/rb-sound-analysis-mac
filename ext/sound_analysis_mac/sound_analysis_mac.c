@@ -1,5 +1,5 @@
 #include <ruby.h>
-#include "sound_analysis_mac.h"
+#include "SoundAnalysisMac-Swift.h"
 
 static VALUE rb_sound_analysis_mac_classify(VALUE self, VALUE path) {
     const char *c_path = StringValueCStr(path);
