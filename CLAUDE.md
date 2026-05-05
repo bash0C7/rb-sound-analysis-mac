@@ -77,6 +77,8 @@ t-wada style RED → GREEN → REFACTOR independent commits. test-unit. Fixture:
 
 macOS 12+, Apple Silicon, Swift 6.3+ (SE-0495 `@c` requires 6.3; install via [swiftly](https://www.swift.org/install/macos/)), Ruby 3.2+, bundler 4.x, rake-compiler 1.2+. `Gemfile` references swift_gem via `path: "../swift_gem"` until publish. `Gemfile.lock` not git-tracked.
 
+Xcode Command Line Tools required only for running `examples/sound_analysis_mac.swift` via `xcrun swift` — swiftly's 6.3 swift binary has broken Apple-framework JIT linkage in interpret mode (verified: SDKROOT, -F, -Xlinker, -sdk all fail). The library build itself does not need CLT. example does not use SE-0495 `@c`, so CLT's older swift (6.2.4) suffices. Install with `xcode-select --install`.
+
 ## Prohibitions
 
 - No Python source

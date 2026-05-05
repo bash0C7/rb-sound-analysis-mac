@@ -5,8 +5,9 @@ Ruby binding for Apple's Sound Analysis framework on macOS / Apple Silicon. Call
 ## Requirements
 
 - macOS 12+, Apple Silicon
-- Swift 6.3+ (SE-0495 `@c` attribute). Install via [swiftly](https://www.swift.org/install/macos/) — Xcode not required.
+- Swift 6.3+ (SE-0495 `@c` attribute) for the library build. Install via [swiftly](https://www.swift.org/install/macos/).
 - Ruby 3.2+, Bundler 4.x
+- **Xcode Command Line Tools** only if you want to run `examples/sound_analysis_mac.swift`. The pure-Swift sample must run under `xcrun swift`; swiftly's 6.3 swift binary cannot JIT-link Apple system frameworks (SoundAnalysis) in interpret mode. The library build itself does not need CLT. Install with `xcode-select --install`.
 
 ## Installation
 
