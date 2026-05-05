@@ -8,7 +8,7 @@ Ruby native binding for Apple's Sound Analysis framework on macOS. Sibling of `r
 
 1. Thin wrapper. Pass-through Sound Analysis API. One audio file → one classification string (newline-separated `label\tconfidence` pairs, one per analysis time window).
 2. Fixed defaults: built-in `.version1` classifier, `SNAudioFileAnalyzer` (sync), top-1 classification per window. Custom CoreML models, multi-classification, and stream analysis are intentionally not added until needed.
-3. 30s overall timeout. Failure (unreadable file, classifier unavailable, OS error, timeout) → empty string. Does not raise exceptions.
+3. SoundAnalysis-side failure (unreadable audio content, classifier unavailable, OS error, 30s timeout) → empty string, no exception. Missing path → `Errno::ENOENT` (the C wrapper `stat()`s the path before handoff so callers can tell bad input from a genuine empty result).
 4. C bridge string handoff. Single `@c` (SE-0495) pair plus shared `sound_analysis_mac_free`. Bridge function signatures fixed at `UnsafePointer<CChar>` ↔ `UnsafeMutablePointer<CChar>`.
 5. Scaffold parity. `swift_gem new rb-sound-analysis-mac` produces a skeleton whose only diffs against this repo are the implementation body, fixtures, and build artifacts.
 
@@ -16,7 +16,7 @@ Ruby native binding for Apple's Sound Analysis framework on macOS. Sibling of `r
 
 | Method | Returns | Notes |
 |---|---|---|
-| `SoundAnalysisMac.classify(path)` | newline-separated `"label\tconfidence"` pairs (top-1 per analysis window) | `SNAudioFileAnalyzer` + `SNClassifySoundRequest(classifierIdentifier: .version1)`. Empty string on failure |
+| `SoundAnalysisMac.classify(path)` | newline-separated `"label\tconfidence"` pairs (top-1 per analysis window) | `SNAudioFileAnalyzer` + `SNClassifySoundRequest(classifierIdentifier: .version1)`. Empty string on SoundAnalysis-side failure; `Errno::ENOENT` on missing path |
 
 Sound Analysis does **not** require microphone permission for file analysis (no TCC privacy gate), so unlike `rb-speech-mac` this gem actually works from a CLI Ruby session.
 
@@ -52,7 +52,7 @@ ext/sound_analysis_mac/Sources/SoundAnalysisMac/SoundAnalysisMac.swift   ← SNA
 | `SoundAnalysisMacBridge.swift` | C ABI export via `@c` (SE-0495) |
 | `SoundAnalysisMac.swift` | Real implementation: `SNAudioFileAnalyzer.analyze()` (synchronous) + an `SNResultsObserving` collector |
 | `ext/sound_analysis_mac/extconf.rb` | `SwiftGem::Mkmf.create_swift_makefile("sound_analysis_mac/sound_analysis_mac", package: "SoundAnalysisMac", source_dir: __dir__)` |
-| `examples/sound_analysis_mac.swift` | Pure-Swift sample script |
+| `examples/sound_analysis_mac.swift` | Pure-Swift sample script: `xcrun swift examples/sound_analysis_mac.swift <path>`. Must use `xcrun swift` (Xcode toolchain) — swiftly 6.3's interpret mode cannot JIT-link Apple system frameworks |
 | `Rakefile` | `Rake::ExtensionTask("sound_analysis_mac")` + `task test: :compile`. `task console: :compile` for IRB |
 
 ## Build flow

@@ -27,7 +27,7 @@ SoundAnalysisMac.classify("path/to/audio.aiff")
 # => "speech\t0.91\nspeech\t0.88\nspeech\t0.93\n..."
 ```
 
-Output is one `label\tconfidence` line per analysis time window. The default Apple `version1` classifier emits one classification per ~1s of audio. On failure (unreadable file, OS error, 30s timeout) the method returns `""`. Unlike `rb-speech-mac`, this gem does **not** require Speech Recognition permission and works directly from a CLI Ruby session.
+Output is one `label\tconfidence` line per analysis time window. The default Apple `version1` classifier emits one classification per ~1s of audio. On SoundAnalysis-side failure (unreadable audio content, classifier unavailable, OS error, 30s timeout) the method returns `""`. **A missing path raises `Errno::ENOENT`** rather than silently returning `""`, so callers can distinguish bad input from a genuine empty classification. Unlike `rb-speech-mac`, this gem does **not** require Speech Recognition permission and works directly from a CLI Ruby session.
 
 Or open an IRB console with the gem preloaded:
 
@@ -50,8 +50,10 @@ It defaults to `test/fixtures/sample.aiff` (generated via `say -v Samantha`) if 
 A self-contained Swift script lives at `examples/sound_analysis_mac.swift` for sanity-checking SoundAnalysis behavior without going through Ruby:
 
 ```bash
-swift examples/sound_analysis_mac.swift path/to/audio.aiff
+xcrun swift examples/sound_analysis_mac.swift path/to/audio.aiff
 ```
+
+Use `xcrun swift` (Xcode toolchain), not bare `swift` from swiftly — swiftly 6.3's interpret mode does not JIT-link Apple system frameworks (SoundAnalysis) and fails at startup with symbol-resolution errors. Xcode's swift uses dyld and works as-is.
 
 ## Development
 
