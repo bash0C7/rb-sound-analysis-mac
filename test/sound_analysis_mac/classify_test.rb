@@ -23,11 +23,15 @@ class SoundAnalysisMacTest < Test::Unit::TestCase
     assert(labels.include?("speech"), "Expected 'speech' label for say-generated audio, got labels: #{labels.uniq.inspect}")
   end
 
-  test "classify returns empty string for nonexistent path" do
-    assert_equal("", SoundAnalysisMac.classify("/nonexistent/path/missing.aiff"))
+  test "classify raises Errno::ENOENT for nonexistent path" do
+    assert_raise(Errno::ENOENT) do
+      SoundAnalysisMac.classify("/nonexistent/path/missing.aiff")
+    end
   end
 
-  test "classify returns empty string for empty path argument" do
-    assert_equal("", SoundAnalysisMac.classify(""))
+  test "classify raises Errno::ENOENT for empty path argument" do
+    assert_raise(Errno::ENOENT) do
+      SoundAnalysisMac.classify("")
+    end
   end
 end
