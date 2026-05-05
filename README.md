@@ -36,6 +36,23 @@ Or open an IRB console with the gem preloaded:
 bundle exec rake console
 ```
 
+## Preconditions: caller is responsible for audio preprocessing
+
+This gem is a **thin pass-through wrapper** around `SNAudioFileAnalyzer` + `SNClassifySoundRequest(.version1)`. It does no audio preprocessing — no format conversion, resampling, channel downmix, denoise, trim, or gain normalization. If `SNAudioFileAnalyzer` can't open the file or the classifier emits nothing, `classify` returns `""`.
+
+Apple's built-in `version1` classifier has known weak spots:
+
+- **Container / codec must be supported by `AVAudioFile`** — typically `aiff`, `wav`, `caf`, `m4a`, `mp3`. Anything else (raw `.pcm`, `.opus`, `.flac` on older macOS) fails to open and the method returns `""`. Convert upstream (e.g. `afconvert`, `ffmpeg`) before calling.
+- **Short clips (≲ 1 second)** — the classifier emits one classification per ~1s analysis window, so a 0.4s clip can return `""` even though "real" sound is in there. Pad / loop / aggregate upstream if you need labels for short clips.
+- **Heavy background music or noise** — the top-1 label tracks whatever is loudest in the window. If you want speech detected over music, the caller should denoise / source-separate first; this gem only reports what `version1` heard.
+- **Quiet / low-gain audio** — sub-threshold volume returns no labels. Normalize gain upstream.
+- **Multichannel handling** — Apple's analyzer downmixes internally; callers who care about per-channel classification must split channels before passing each path in.
+- **Streaming / live audio** — file-based only by design (mirrors `SNAudioFileAnalyzer`, not `SNAudioStreamAnalyzer`). Recording / chunking is the caller's responsibility.
+
+**Detection of these cases is also the caller's job.** `classify` returns `""` for "audio loaded but classifier emitted nothing", "format unsupported", "30s timeout", and "internal OS error" alike — the gem does not distinguish them. Callers that need branching behavior should branch on `output.empty?` and apply their own fallback chain (convert → retry → trim → retry → give up).
+
+A missing path is the one failure mode this gem **does** surface as an exception (`Errno::ENOENT`), since that is unambiguously bad input and never a legitimate empty classification.
+
 ## Reference: Ruby example
 
 `example.rb` at the repo root demonstrates the call:
