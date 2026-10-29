@@ -10,9 +10,6 @@ static VALUE rb_sound_analysis_mac_classify(VALUE self, VALUE path) {
         rb_syserr_fail(errno, c_path);
     }
     char *result = sound_analysis_mac_classify(c_path);
-    if (result == NULL) {
-        return rb_utf8_str_new_cstr("");
-    }
     VALUE rb_result = rb_utf8_str_new_cstr(result);
     sound_analysis_mac_free(result);
     return rb_result;
