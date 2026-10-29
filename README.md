@@ -1,22 +1,22 @@
 # rb-sound-analysis-mac
 
-Ruby binding for Apple's Sound Analysis framework on macOS / Apple Silicon. Calls file-based sound classification using the built-in `MLSoundIdentifierVersion1` classifier (300+ environmental sounds: speech, music, applause, laughter, etc.) directly from Ruby via Swift Package Manager and a thin C bridge. Built on [swift_gem](https://github.com/bash0C7/swift_gem).
+Ruby binding for Apple's Sound Analysis framework on macOS / Apple Silicon. Classifies the sounds in an audio file with the built-in `version1` sound classifier (environmental sounds such as speech, music, applause, and laughter) from Ruby via Swift Package Manager and a thin C bridge. Built on [swift_gem](https://github.com/bash0C7/swift_gem).
 
 ## Requirements
 
-- macOS 12+, Apple Silicon
-- Swift 6.3+ (SE-0495 `@c` attribute) for the library build. Install via [swiftly](https://www.swift.org/install/macos/).
-- Ruby 3.2+, Bundler 4.x
-- **Xcode Command Line Tools** only if you want to run `examples/sound_analysis_mac.swift`. The pure-Swift sample must run under `xcrun swift`; swiftly's 6.3 swift binary cannot JIT-link Apple system frameworks (SoundAnalysis) in interpret mode. The library build itself does not need CLT. Install with `xcode-select --install`.
+- macOS 27+, Apple Silicon
+- Xcode 27 (builds run `xcrun swift`)
+- Ruby 4.0+, Bundler 4.x
 
 ## Installation
 
-```bash
-bundle add rb-sound-analysis-mac
-```
+Install from source:
 
 ```bash
-gem install rb-sound-analysis-mac
+git clone https://github.com/bash0C7/rb-sound-analysis-mac.git
+cd rb-sound-analysis-mac
+bundle install
+bundle exec rake compile
 ```
 
 ## Usage
@@ -25,12 +25,12 @@ gem install rb-sound-analysis-mac
 require "sound_analysis_mac"
 
 SoundAnalysisMac.classify("path/to/audio.aiff")
-# => "speech\t0.91\nspeech\t0.88\nspeech\t0.93\n..."
+# => "speech\t0.9190546274185181\nspeech\t0.9189109802246094\nspeech\t0.9176614880561829"
 ```
 
-Output is one `label\tconfidence` line per analysis time window. The default Apple `version1` classifier emits one classification per ~1s of audio. On SoundAnalysis-side failure (unreadable audio content, classifier unavailable, OS error, 30s timeout) the method returns `""`. **A missing path raises `Errno::ENOENT`** rather than silently returning `""`, so callers can distinguish bad input from a genuine empty classification. Unlike `rb-speech-mac`, this gem does **not** require Speech Recognition permission and works directly from a CLI Ruby session.
+`classify(path)` runs `SNAudioFileAnalyzer` with `SNClassifySoundRequest(classifierIdentifier: .version1)` and returns one `label\tconfidence` line per analysis window, using the top classification of each window. The classifier's default window is 3 seconds and consecutive windows overlap by half, so a new line appears every 1.5 seconds of audio. It returns `""` when the file cannot be opened as audio or the analysis fails. A path that does not exist raises `Errno::ENOENT`. File analysis needs no privacy permission, so the gem works from a plain CLI Ruby session.
 
-Or open an IRB console with the gem preloaded:
+Open an IRB console with the gem preloaded:
 
 ```bash
 bundle exec rake console
@@ -38,40 +38,35 @@ bundle exec rake console
 
 ## Preconditions: caller is responsible for audio preprocessing
 
-This gem is a **thin pass-through wrapper** around `SNAudioFileAnalyzer` + `SNClassifySoundRequest(.version1)`. It does no audio preprocessing — no format conversion, resampling, channel downmix, denoise, trim, or gain normalization. If `SNAudioFileAnalyzer` can't open the file or the classifier emits nothing, `classify` returns `""`.
+This gem passes the file to `SNAudioFileAnalyzer` as-is. It does no format conversion, resampling, channel downmix, denoising, trimming, or gain normalization.
 
 Apple's built-in `version1` classifier has known weak spots:
 
-- **Container / codec must be supported by `AVAudioFile`** — typically `aiff`, `wav`, `caf`, `m4a`, `mp3`. Anything else (raw `.pcm`, `.opus`, `.flac` on older macOS) fails to open and the method returns `""`. Convert upstream (e.g. `afconvert`, `ffmpeg`) before calling.
-- **Short clips (≲ 1 second)** — the classifier emits one classification per ~1s analysis window, so a 0.4s clip can return `""` even though "real" sound is in there. Pad / loop / aggregate upstream if you need labels for short clips.
-- **Heavy background music or noise** — the top-1 label tracks whatever is loudest in the window. If you want speech detected over music, the caller should denoise / source-separate first; this gem only reports what `version1` heard.
-- **Quiet / low-gain audio** — sub-threshold volume returns no labels. Normalize gain upstream.
-- **Multichannel handling** — Apple's analyzer downmixes internally; callers who care about per-channel classification must split channels before passing each path in.
-- **Streaming / live audio** — file-based only by design (mirrors `SNAudioFileAnalyzer`, not `SNAudioStreamAnalyzer`). Recording / chunking is the caller's responsibility.
+- **Container / codec must be supported by `AVAudioFile`**, such as `aiff`, `wav`, `caf`, `m4a`, and `flac`. Files it cannot open, such as headerless raw PCM, return `""`. Convert upstream (for example with `afconvert` or `ffmpeg`).
+- **Clips shorter than one analysis window (3 seconds)** return `""` even when they contain sound. Pad or loop short clips upstream.
+- **Heavy background music or noise**. The top label tracks whatever dominates the window. Denoise or source-separate upstream if you want speech detected over music.
+- **Quiet / low-gain audio** may produce no labels. Normalize gain upstream.
+- **Multichannel audio**. The classifier analyzes the first channel. Split channels upstream and classify each file if you need per-channel labels.
+- **Streaming / live audio** is out of scope. This gem is file-based (`SNAudioFileAnalyzer`, not `SNAudioStreamAnalyzer`); recording and chunking are the caller's job.
 
-**Detection of these cases is also the caller's job.** `classify` returns `""` for "audio loaded but classifier emitted nothing", "format unsupported", "30s timeout", and "internal OS error" alike — the gem does not distinguish them. Callers that need branching behavior should branch on `output.empty?` and apply their own fallback chain (convert → retry → trim → retry → give up).
-
-A missing path is the one failure mode this gem **does** surface as an exception (`Errno::ENOENT`), since that is unambiguously bad input and never a legitimate empty classification.
+`classify` returns the same `""` for "classifier emitted nothing", "unsupported format", and "analysis failed". Branch on `output.empty?` and apply your own fallback (convert, pad, retry). A missing path is the one failure surfaced as an exception (`Errno::ENOENT`).
 
 ## Reference: Ruby example
 
-`example.rb` at the repo root demonstrates the call:
-
 ```bash
+bundle exec rake compile
 bundle exec ruby example.rb path/to/audio.aiff
 ```
 
-It defaults to `test/fixtures/sample.aiff` (generated via `say -v Samantha`) if no argument is given.
+`example.rb` prints the classification of the given file, or of `test/fixtures/sample.aiff` when no argument is given.
 
 ## Reference: pure Swift sample
 
-A self-contained Swift script lives at `examples/sound_analysis_mac.swift` for sanity-checking SoundAnalysis behavior without going through Ruby:
+`examples/sound_analysis_mac.swift` runs the same classification without Ruby:
 
 ```bash
 xcrun swift examples/sound_analysis_mac.swift path/to/audio.aiff
 ```
-
-Use `xcrun swift` (Xcode toolchain), not bare `swift` from swiftly — swiftly 6.3's interpret mode does not JIT-link Apple system frameworks (SoundAnalysis) and fails at startup with symbol-resolution errors. Xcode's swift uses dyld and works as-is.
 
 ## Development
 
@@ -80,9 +75,7 @@ bundle install
 bundle exec rake test
 ```
 
-`rake test` automatically compiles the Swift Package (`swift build -c release`) and links the C bridge into `lib/sound_analysis_mac/sound_analysis_mac.bundle` before running the spec, via `Rake::ExtensionTask`.
-
-To run only the build step: `bundle exec rake compile`.
+`rake test` validates `sig/sound_analysis_mac.rbs`, runs `xcrun swift build -c release --package-path ext/sound_analysis_mac`, builds the C extension into `lib/sound_analysis_mac/sound_analysis_mac.bundle`, then runs the tests. `bundle exec rake compile` runs only the build.
 
 ## License
 
