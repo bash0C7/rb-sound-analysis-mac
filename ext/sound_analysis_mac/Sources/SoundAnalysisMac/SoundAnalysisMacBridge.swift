@@ -1,6 +1,6 @@
 import Foundation
 
-/// Calls ``classify(path:)`` from C as `sound_analysis_mac_classify`.
+/// Calls `classify(path:)` from C as `sound_analysis_mac_classify`.
 ///
 /// The returned buffer is allocated with `strdup`. Release it with ``cFree(_:)``.
 ///
