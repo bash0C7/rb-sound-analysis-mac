@@ -1,51 +1,29 @@
-import SoundAnalysis
 import Foundation
+import SoundAnalysis
 
-// Run with: xcrun swift examples/sound_analysis_mac.swift <audio-path>
-//
-// Use 'xcrun swift' (Xcode toolchain), not bare 'swift' (swiftly).
-// swiftly 6.3's swift interpret mode fails to JIT-link Apple system
-// frameworks (SoundAnalysis), so symbol resolution errors at startup.
-// Xcode's swift uses dyld for framework linking and works as expected.
-
-guard CommandLine.arguments.count >= 2 else {
-    FileHandle.standardError.write("usage: xcrun swift examples/sound_analysis_mac.swift <audio-path>\n".data(using: .utf8)!)
+guard let input = CommandLine.arguments.dropFirst().first else {
+    FileHandle.standardError.write(Data("usage: xcrun swift examples/sound_analysis_mac.swift <audio-path>\n".utf8))
     exit(1)
 }
 
-let path = CommandLine.arguments[1]
-let url = URL(fileURLWithPath: path)
-
-final class Collector: NSObject, SNResultsObserving {
-    let semaphore: DispatchSemaphore
-    init(_ s: DispatchSemaphore) { self.semaphore = s }
-
-    func request(_ request: SNRequest, didProduce result: SNResult) {
-        guard let cr = result as? SNClassificationResult,
-              let top = cr.classifications.first else { return }
+final class Printer: NSObject, SNResultsObserving {
+    func request(_ request: any SNRequest, didProduce result: any SNResult) {
+        guard let top = (result as? SNClassificationResult)?.classifications.first else { return }
         print("\(top.identifier)\t\(top.confidence)")
     }
 
-    func request(_ request: SNRequest, didFailWithError error: Error) {
-        FileHandle.standardError.write("error: \(error)\n".data(using: .utf8)!)
-        semaphore.signal()
-    }
-
-    func requestDidComplete(_ request: SNRequest) {
-        semaphore.signal()
+    func request(_ request: any SNRequest, didFailWithError error: any Error) {
+        FileHandle.standardError.write(Data("error: \(error)\n".utf8))
+        exit(2)
     }
 }
 
-let semaphore = DispatchSemaphore(value: 0)
-let collector = Collector(semaphore)
-
+let printer = Printer()
 do {
-    let analyzer = try SNAudioFileAnalyzer(url: url)
-    let request = try SNClassifySoundRequest(classifierIdentifier: .version1)
-    try analyzer.add(request, withObserver: collector)
+    let analyzer = try SNAudioFileAnalyzer(url: URL(filePath: input))
+    try analyzer.add(SNClassifySoundRequest(classifierIdentifier: .version1), withObserver: printer)
     analyzer.analyze()
-    _ = semaphore.wait(timeout: .now() + .seconds(30))
 } catch {
-    FileHandle.standardError.write("setup error: \(error)\n".data(using: .utf8)!)
+    FileHandle.standardError.write(Data("error: \(error)\n".utf8))
     exit(2)
 }

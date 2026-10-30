@@ -1,0 +1,14 @@
+module SoundAnalysisMac
+  # The gem version.
+  VERSION: String
+
+  # Base class for errors raised by this gem.
+  class Error < StandardError
+  end
+
+  # Classifies the sounds in the audio file at +path+ with SoundAnalysis' built-in version1 classifier.
+  # Returns one "label\tconfidence" line per analysis window, joined by newlines, using the top classification of each window.
+  # Returns an empty string when the file cannot be opened as audio or the analysis fails.
+  # Raises a SystemCallError such as Errno::ENOENT when +path+ cannot be stat'ed.
+  def self.classify: (String path) -> String
+end

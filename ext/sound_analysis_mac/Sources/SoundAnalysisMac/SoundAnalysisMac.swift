@@ -1,54 +1,40 @@
-import SoundAnalysis
 import Foundation
+import SoundAnalysis
 
-private let timeoutSeconds: Int = 30
-
-private final class ResultCollector: NSObject, SNResultsObserving {
+/// Collects the top classification of each analysis window delivered by an analyzer.
+private final class TopClassificationCollector: NSObject, SNResultsObserving {
+    /// One `"label\tconfidence"` line per analysis window, in delivery order.
     var lines: [String] = []
-    var failed: Bool = false
-    let semaphore: DispatchSemaphore
 
-    init(semaphore: DispatchSemaphore) {
-        self.semaphore = semaphore
-        super.init()
-    }
+    /// Whether the request ended with an error instead of completing.
+    var failed = false
 
-    func request(_ request: SNRequest, didProduce result: SNResult) {
-        guard let cr = result as? SNClassificationResult,
-              let top = cr.classifications.first else { return }
+    func request(_ request: any SNRequest, didProduce result: any SNResult) {
+        guard let top = (result as? SNClassificationResult)?.classifications.first else { return }
         lines.append("\(top.identifier)\t\(top.confidence)")
     }
 
-    func request(_ request: SNRequest, didFailWithError error: Error) {
+    func request(_ request: any SNRequest, didFailWithError error: any Error) {
         failed = true
-        semaphore.signal()
-    }
-
-    func requestDidComplete(_ request: SNRequest) {
-        semaphore.signal()
     }
 }
 
-func performClassify(path: String) -> String {
-    if path.isEmpty { return "" }
-    if !FileManager.default.fileExists(atPath: path) { return "" }
-
-    let url = URL(fileURLWithPath: path)
-    let semaphore = DispatchSemaphore(value: 0)
-    let collector = ResultCollector(semaphore: semaphore)
-
+/// Classifies the sounds in an audio file with the built-in `version1` sound classifier.
+///
+/// `SNAudioFileAnalyzer.analyze()` runs synchronously and delivers every observer callback on the
+/// calling thread before it returns. ``cClassify(_:)`` exposes this function to C.
+///
+/// - Parameter path: The path of an audio file that `AVAudioFile` can open.
+/// - Returns: One `"label\tconfidence"` line per analysis window joined by newlines, or an empty
+///   string when the file cannot be opened as audio or the analysis fails.
+func classify(path: String) -> String {
+    let collector = TopClassificationCollector()
     do {
-        let analyzer = try SNAudioFileAnalyzer(url: url)
-        let request = try SNClassifySoundRequest(classifierIdentifier: .version1)
-        try analyzer.add(request, withObserver: collector)
+        let analyzer = try SNAudioFileAnalyzer(url: URL(filePath: path))
+        try analyzer.add(SNClassifySoundRequest(classifierIdentifier: .version1), withObserver: collector)
         analyzer.analyze()
-        if semaphore.wait(timeout: .now() + .seconds(timeoutSeconds)) == .timedOut {
-            return ""
-        }
     } catch {
         return ""
     }
-
-    if collector.failed { return "" }
-    return collector.lines.joined(separator: "\n")
+    return collector.failed ? "" : collector.lines.joined(separator: "\n")
 }
